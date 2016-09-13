@@ -94,7 +94,7 @@ void base_timer_set_pwm_change_duty_by(int8_t percentage)
 	
 	base_usart_send_string(":change_duty_by:> ");
 	base_usart_send_decimal(base_timer_context.pwm_duty);
-	base_usart_send_string("%\r\n");
+	base_usart_send_string("\r\n");
 	//(*(volatile uint8_t*)&OCR1AH) = (uint8_t)((duty_cycle>>8)&0xFF);
 	//(*(volatile uint8_t*)&OCR1AL) = (uint8_t)((duty_cycle)&0xFF);
 	OCR1AH = (uint8_t)((duty_cycle>>8)&0xFF);
