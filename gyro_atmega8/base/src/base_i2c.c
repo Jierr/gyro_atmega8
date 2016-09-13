@@ -365,3 +365,15 @@ ISR(TWI_vect)
 	}
 	i2c_ctx.twi_state = state;
 }
+
+
+void base_i2c_wait()
+{
+	while(i2c_ctx.twi_state != STATE_TWI_IDLE)
+	;
+}
+
+uint8_t base_i2c_is_ready()
+{
+	return (i2c_ctx.twi_state == STATE_TWI_IDLE);	
+}

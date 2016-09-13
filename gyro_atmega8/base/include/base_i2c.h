@@ -48,6 +48,8 @@ void base_i2c_init();
 void base_i2c_set_slave(volatile i2c_ctx_t* ctx, uint8_t addr);
 void base_i2c_start_read(volatile i2c_ctx_t* ctx, uint8_t slave, uint8_t local, uint8_t* buf, int count);
 void base_i2c_start_write(volatile i2c_ctx_t* ctx, uint8_t slave, uint8_t local, uint8_t* buf, int count);
+void base_i2c_wait();
+uint8_t base_i2c_is_ready();
 uint8_t base_i2c_read(uint8_t slave, uint8_t adr);
 
 ISR(TWI_vect);
