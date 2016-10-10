@@ -10,6 +10,7 @@
 #include "base_i2c.h"
 #include "base_usart.h"
 #include "base_timer.h"
+#include "base_sw_pwm.h"
 #include "abstract_7segment.h"
 #include <avr/interrupt.h>
 
@@ -134,17 +135,24 @@ ISR(USART_RXC_vect)
 			ms=(1000+ms-100)%1000;
 			break;
 		case 'y':
-		base_timer_set_pwm_change_duty_by(-1);
+		base_timer1_set_pwm_change_duty_by(-1);
 		base_usart_send_string(":ISR(USART_RXC_vect):> -1 pwm_duty\r\n");
 		break;
 		case 'x':
-		base_timer_set_pwm_change_duty_by(1);
+		base_timer1_set_pwm_change_duty_by(1);
 		base_usart_send_string(":ISR(USART_RXC_vect):> +1 pwm_duty\r\n");
 		break;
 		default:
 			break;
 	}
 	SREG = sreg;
+}
+
+
+ISR(TIMER0_OVF_vect)
+{
+	++base_timer0_context.tick;
+	base_sw_pwm_timer0_callback();
 }
 
 ISR(TIMER2_COMP_vect)
@@ -206,7 +214,8 @@ int main()
 		DDRB |= (1<<DDB0);
 		//7segment
 		//abstract_7segment_init();	
-		base_timer_init();	
+		base_timer0_init();
+		base_timer1_init();	
 		base_usart_init(MUBRR);
 		/* OCR = 249, 1 Interrupt per milisecond --> 1000 ips */
 		initTimerCTC(1000UL, 64, 0);
