@@ -1,2 +1,3 @@
-gyro_atmega8\Debug
-gyro_atmega8\Release
+gyro_atmega8/Debug/
+gyro_atmega8/Release/
+.vs/
