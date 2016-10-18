@@ -26,6 +26,7 @@ volatile base_timer0_context_t base_timer0_context = {
 	.tick = 0,
 	.prescaler = 1,
 	.ms_tick_count = 0,
+	.s_tick_count = 0,
 };
 
 static uint32_t _base_timer0_ms_ticks(uint32_t ms);
@@ -36,6 +37,7 @@ void base_timer0_init()
 	base_timer0_context.tick = 0;
 	base_timer0_context.prescaler = BASE_TIMER0_PRESCALER;
 	base_timer0_context.ms_tick_count = _base_timer0_ms_ticks(1);
+	base_timer0_context.s_tick_count = _base_timer0_ms_ticks(1000);
 	TCNT0 = 0x00;
 	//reset Interrupt
 	TIFR |= 0x01;
@@ -63,8 +65,7 @@ void base_timer0_init()
 		default:
 		TCCR0 = 0x00;
 		break;
-	}
-	TCCR0 = 0x03;	
+	}	
 }
 
 uint32_t _base_timer0_ms_ticks(uint32_t ms)
@@ -80,6 +81,11 @@ uint32_t _base_timer0_ms_ticks(uint32_t ms)
 uint32_t base_timer0_ms_ticks(uint32_t ms)
 {
 	return ms * base_timer0_context.ms_tick_count;
+}
+
+uint32_t base_timer0_s_ticks(uint32_t s)
+{
+	return s * base_timer0_context.s_tick_count;
 }
 
 

@@ -151,12 +151,55 @@ ISR(USART_RXC_vect)
 
 ISR(TIMER0_OVF_vect)
 {
+	uint8_t sreg = SREG;
+	cli();
 	++base_timer0_context.tick;
-	base_sw_pwm_timer0_callback();
+	static uint8_t msTimer = 0;
+	
+	
+	//base_sw_pwm_timer0_callback();
+	
+	if((base_timer0_context.tick % base_timer0_s_ticks(1)) == 0)
+	{
+		base_usart_send_string("tick:");
+		base_usart_send_decimal(base_timer0_context.tick);
+		base_usart_send_string(" == ");
+		base_usart_send_decimal(base_timer0_s_ticks(1));
+		base_usart_send_string("\r\n");
+	}
+	SREG = sreg;
+
+/*
+	if((base_timer0_context.tick % base_timer0_ms_ticks(1)) == 0)
+	{
+		msTimer+=1;
+		if (msTimer == 100)
+		{
+			ms=(ms+100)%1000;
+
+			
+			if (!ms)
+			{
+				sec=(sec+1)%60;
+				if (!sec)
+				{
+					min=(min+1)%60;
+					if (!min)
+					hour=(hour+1)%24;
+				}
+			}
+
+			transEn = 1;
+			msTimer = 0;
+		}
+	}
+*/
+	
 }
 
 ISR(TIMER2_COMP_vect)
 {
+	/*
 	static uint8_t msTimer = 0;
 	msTimer+=1;
 	if (msTimer == 100)
@@ -178,6 +221,7 @@ ISR(TIMER2_COMP_vect)
 		transEn = 1;
 		msTimer = 0;
 	}	
+	*/
 	//abstract_7segment_display(sec/10, sec%10);
 }
 
@@ -186,6 +230,7 @@ int main()
 {
 	char str[15] = {0,};
 	char msg[128] = {0,};
+	uint8_t motor[4] = {0,};
 	uint16_t sms = 0;
 	uint8_t ssec = 0;
 	uint8_t smin = 0;
@@ -213,9 +258,17 @@ int main()
 		//led
 		DDRB |= (1<<DDB0);
 		//7segment
-		//abstract_7segment_init();	
+		//abstract_7segment_init();
+		base_sw_pwm_ctx_init();
 		base_timer0_init();
-		base_timer1_init();	
+		//bottom right pins
+		motor[0] = base_sw_pwm_init(PORTB, BASE_PIN2);
+		motor[1] = base_sw_pwm_init(PORTB, BASE_PIN3);
+		//bottom left pins
+		motor[2] = base_sw_pwm_init(PORTB, BASE_PIN1);
+		motor[3] = base_sw_pwm_init(PORTD, BASE_PIN8);
+		
+		//base_timer1_init();	
 		base_usart_init(MUBRR);
 		/* OCR = 249, 1 Interrupt per milisecond --> 1000 ips */
 		initTimerCTC(1000UL, 64, 0);

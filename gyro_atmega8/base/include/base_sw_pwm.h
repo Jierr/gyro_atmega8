@@ -13,8 +13,24 @@
 #include "base_timer.h"
 
 
+typedef struct base_sw_pwm_config
+{
+	port_type_t port;
+	pin_type_t pin;
+	uint8_t pwm_duty;
+} base_sw_pwm_config_t;
 
-void base_sw_pwm_init(port_type_t port, pin_type_t pin);
+typedef struct base_sw_pwm_ctx
+{
+	base_sw_pwm_config_t pin[BASE_MAX_PINS];
+	uint8_t config_count;	
+} base_sw_pwm_ctx_t;
+
+extern volatile base_sw_pwm_ctx_t base_sw_pwm_ctx;
+
+void base_sw_pwm_ctx_init();
+uint8_t base_sw_pwm_init(port_type_t port, pin_type_t pin);
+void base_sw_pwm_set_duty(uint8_t id);
 void base_sw_pwm_timer0_callback();
 
 

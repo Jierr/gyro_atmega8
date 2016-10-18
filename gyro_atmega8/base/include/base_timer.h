@@ -9,7 +9,7 @@
 #ifndef BASE_TIMER_H_
 #define BASE_TIMER_H_
 
-#define BASE_TIMER0_PRESCALER (1)
+#define BASE_TIMER0_PRESCALER (256)
 
 typedef struct base_timer1_context
 {
@@ -23,6 +23,7 @@ typedef struct base_timer0_context
 	uint32_t tick;
 	uint16_t prescaler;
 	uint32_t ms_tick_count;
+	uint32_t s_tick_count;
 } base_timer0_context_t;
 
 extern volatile base_timer1_context_t base_timer1_context;

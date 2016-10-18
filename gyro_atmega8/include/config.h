@@ -22,10 +22,13 @@
 
 #include <avr/io.h>
 
+#define BASE_MAX_PINS ((uint8_t)(28))
+
 typedef enum {
 	BASE_PORTB = 0,
-	BASE_PORTC = 0,
-	BASE_PORTD = 0,
+	BASE_PORTC = 1,
+	BASE_PORTD = 2,
+	BASE_PORT_NONE
 } port_type_t;
 
 typedef enum {
@@ -37,6 +40,7 @@ typedef enum {
 	BASE_PIN6 = 0x20,
 	BASE_PIN7 = 0x40,
 	BASE_PIN8 = 0x80,
+	BASE_PIN_NONE = 0x00,
 	
 } pin_type_t;
 
