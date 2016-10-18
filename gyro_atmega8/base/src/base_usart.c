@@ -109,16 +109,16 @@ void base_usart_send_decimal(int32_t data)
 	uint8_t c = 0;
 	uint8_t n = 0;
 	
-	if(data < 0)
+	if(data >= 0)
+	{
+		val = data;
+		c= 0;
+	}
+	else
 	{
 		val = -data;
 		result[c] = '-';
 		c = 1;
-	}
-	else
-	{
-		val = data;
-		c= 0;
 	}
 	
 	

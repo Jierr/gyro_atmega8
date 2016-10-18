@@ -153,48 +153,49 @@ ISR(TIMER0_OVF_vect)
 {
 	uint8_t sreg = SREG;
 	cli();
-	++base_timer0_context.tick;
+	uint32_t mod;
+	uint32_t a,b;
 	static uint8_t msTimer = 0;
-	
-	
-	//base_sw_pwm_timer0_callback();
-	
-	if((base_timer0_context.tick % base_timer0_s_ticks(1)) == 0)
-	{
-		base_usart_send_string("tick:");
-		base_usart_send_decimal(base_timer0_context.tick);
-		base_usart_send_string(" == ");
-		base_usart_send_decimal(base_timer0_s_ticks(1));
-		base_usart_send_string("\r\n");
-	}
-	SREG = sreg;
 
-/*
-	if((base_timer0_context.tick % base_timer0_ms_ticks(1)) == 0)
+	base_timer0_context.tick+=1;	//base_sw_pwm_timer0_callback();
+	
+	a = base_timer0_context.tick;
+	b = base_timer0_s_ticks(1)/10;
+	mod = a%b; 
+	if(((uint8_t)mod&0xFF) == 0)
 	{
-		msTimer+=1;
-		if (msTimer == 100)
 		{
-			ms=(ms+100)%1000;
-
-			
-			if (!ms)
+			msTimer+=100;
+			if (msTimer == 100)
 			{
-				sec=(sec+1)%60;
-				if (!sec)
-				{
-					min=(min+1)%60;
-					if (!min)
-					hour=(hour+1)%24;
-				}
-			}
+				ms=(ms+100)%1000;
 
-			transEn = 1;
-			msTimer = 0;
+				
+				if (!ms)
+				{
+					sec=(sec+1)%60;
+					if (!sec)
+					{
+						min=(min+1)%60;
+						if (!min)
+						hour=(hour+1)%24;
+					}
+				}
+
+				transEn = 1;
+				msTimer = 0;
+			}
 		}
+		/*
+		base_usart_send_string("tick:");
+		base_usart_send_decimal(a);
+		base_usart_send_string(" == ");
+		base_usart_send_decimal(b);
+		base_usart_send_string("\r\n");
+		*/
 	}
-*/
-	
+
+	SREG = sreg;	
 }
 
 ISR(TIMER2_COMP_vect)

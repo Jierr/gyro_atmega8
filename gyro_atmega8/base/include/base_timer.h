@@ -9,7 +9,7 @@
 #ifndef BASE_TIMER_H_
 #define BASE_TIMER_H_
 
-#define BASE_TIMER0_PRESCALER (256)
+#define BASE_TIMER0_PRESCALER (64)
 
 typedef struct base_timer1_context
 {
@@ -32,6 +32,7 @@ extern volatile base_timer0_context_t base_timer0_context;
 
 void base_timer0_init();
 uint32_t base_timer0_ms_ticks(uint32_t ms);
+uint32_t base_timer0_s_ticks(uint32_t s);
 
 void base_timer1_init();
 void base_timer1_set_pwm_frequency();
