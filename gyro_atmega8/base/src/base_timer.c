@@ -73,8 +73,8 @@ uint32_t _base_timer0_ms_ticks(uint32_t ms)
 	uint32_t sec_ticks = 0;
 	uint32_t ms_ticks = 0;
 	
-	sec_ticks = (uint32_t)F_CPU / base_timer0_context.prescaler / 256;
-	ms_ticks = ((uint32_t)ms*sec_ticks) / 1000 ;
+	sec_ticks = (uint32_t)F_CPU / (uint32_t)base_timer0_context.prescaler / (uint32_t)256;
+	ms_ticks = (ms*sec_ticks) / (uint32_t)1000 ;
 	return ms_ticks;
 }
 

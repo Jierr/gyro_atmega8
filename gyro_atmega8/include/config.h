@@ -18,6 +18,7 @@
 
 #define CONFIG_DEBUG_GEN 1
 #define CONFIG_DEBUG_MP6050 0
+#define CONFIG_TIME 0
 
 
 #include <avr/io.h>
