@@ -14,7 +14,7 @@ void base_sw_pwm_ctx_init()
 {
 	uint8_t p = 0;
 	base_sw_pwm_ctx.config_count = 0;
-	base_sw_pwm_ctx.cycle_tick_count = 99;
+	base_sw_pwm_ctx.cycle_tick_count = 100;
 	base_sw_pwm_ctx.cycle_tick = 0;
 	for(p = 0; p < BASE_MAX_PINS; ++p)
 	{
@@ -32,7 +32,7 @@ uint16_t base_sw_pwm_set_global_cycle(uint16_t hz)
 	base_sw_pwm_ctx.cycle_tick = 0;
 	if(hz == 0)
 	{		
-		base_sw_pwm_ctx.cycle_tick_count = 99;
+		base_sw_pwm_ctx.cycle_tick_count = 100;
 		return base_timer0_s_ticks(1)/100;		
 	}
 	
@@ -41,7 +41,7 @@ uint16_t base_sw_pwm_set_global_cycle(uint16_t hz)
 	
 	if(cycle_count < 100)
 	{
-		base_sw_pwm_ctx.cycle_tick_count = 99;
+		base_sw_pwm_ctx.cycle_tick_count = 100;
 		return base_timer0_s_ticks(1)/100;
 	}
 	else
