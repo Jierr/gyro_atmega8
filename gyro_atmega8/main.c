@@ -135,11 +135,19 @@ ISR(USART_RXC_vect)
 			ms=(1000+ms-100)%1000;
 			break;
 		case 'y':
-		base_timer1_set_pwm_change_duty_by(-1);
+		//base_timer1_set_pwm_change_duty_by(-1);
+		base_sw_pwm_duty(0, -1);
+		base_sw_pwm_duty(1, -1);
+		base_sw_pwm_duty(2, -1);
+		base_sw_pwm_duty(3, -1);
 		base_usart_send_string(":ISR(USART_RXC_vect):> -1 pwm_duty\r\n");
 		break;
 		case 'x':
-		base_timer1_set_pwm_change_duty_by(1);
+		//base_timer1_set_pwm_change_duty_by(1);
+		base_sw_pwm_duty(0, 1);
+		base_sw_pwm_duty(1, 1);
+		base_sw_pwm_duty(2, 1);
+		base_sw_pwm_duty(3, 1);
 		base_usart_send_string(":ISR(USART_RXC_vect):> +1 pwm_duty\r\n");
 		break;
 		default:
@@ -157,50 +165,55 @@ ISR(TIMER0_OVF_vect)
 	uint32_t a,b;
 	static uint8_t msTimer = 0;
 
-	base_timer0_context.tick+=1;	//base_sw_pwm_timer0_callback();
+	base_timer0_context.tick+=1;	
+	//base_sw_pwm_timer0_callback();
 	
+#if 0
 	a = base_timer0_context.tick;
-	b = base_timer0_s_ticks(1)/10;
+	b = base_timer0_s_ticks(1)/100;
 	mod = a%b; 
 	if(((uint8_t)mod&0xFF) == 0)
 	{
+		
+		ms+=10;
+		//msTimer+=10;
+		/*
+		if (msTimer == 100)
 		{
-			msTimer+=100;
-			if (msTimer == 100)
-			{
-				ms=(ms+100)%1000;
+			ms=(ms+100)%1000;
 
 				
-				if (!ms)
+			if (!ms)
+			{
+				sec=(sec+1)%60;
+				if (!sec)
 				{
-					sec=(sec+1)%60;
-					if (!sec)
-					{
-						min=(min+1)%60;
-						if (!min)
-						hour=(hour+1)%24;
-					}
+					min=(min+1)%60;
+					if (!min)
+					hour=(hour+1)%24;
 				}
-
-				transEn = 1;
-				msTimer = 0;
 			}
+
+			transEn = 1;
+			msTimer = 0;
 		}
-		/*
-		base_usart_send_string("tick:");
-		base_usart_send_decimal(a);
-		base_usart_send_string(" == ");
-		base_usart_send_decimal(b);
-		base_usart_send_string("\r\n");
 		*/
+		
+		//base_usart_send_string("tick:");
+		//base_usart_send_decimal(ms);
+		//base_usart_send_string(" == ");
+		//base_usart_send_decimal(b);
+		//base_usart_send_string("\r\n");
+		
 	}
+#endif
 
 	SREG = sreg;	
 }
 
 ISR(TIMER2_COMP_vect)
 {
-	/*
+	
 	static uint8_t msTimer = 0;
 	msTimer+=1;
 	if (msTimer == 100)
@@ -222,7 +235,7 @@ ISR(TIMER2_COMP_vect)
 		transEn = 1;
 		msTimer = 0;
 	}	
-	*/
+	
 	//abstract_7segment_display(sec/10, sec%10);
 }
 
@@ -248,6 +261,7 @@ int main()
 	//float fgyro[3] = {0,};
 	//float faccel[3] = {0,};
 	uint8_t ms100 = 0;
+	uint16_t pwm_cycle_frequency_hz = 0;
 
 	cli();
 		DDRB = 0;
@@ -258,24 +272,42 @@ int main()
 		PORTD = 0;
 		//led
 		DDRB |= (1<<DDB0);
+		//base_timer1_init();
+		/* OCR = 249, 1 Interrupt per milisecond --> 1000 ips */
+		initTimerCTC(1000UL, 64, 0);
+		base_usart_init(MUBRR);
 		//7segment
 		//abstract_7segment_init();
-		base_sw_pwm_ctx_init();
-		base_timer0_init();
+		//base_sw_pwm_ctx_init();
+		//base_timer0_init();
 		//bottom right pins
+		pwm_cycle_frequency_hz = base_sw_pwm_set_global_cycle(0);
 		motor[0] = base_sw_pwm_init(PORTB, BASE_PIN2);
 		motor[1] = base_sw_pwm_init(PORTB, BASE_PIN3);
 		//bottom left pins
 		motor[2] = base_sw_pwm_init(PORTB, BASE_PIN1);
 		motor[3] = base_sw_pwm_init(PORTD, BASE_PIN8);
 		
-		//base_timer1_init();	
-		base_usart_init(MUBRR);
-		/* OCR = 249, 1 Interrupt per milisecond --> 1000 ips */
-		initTimerCTC(1000UL, 64, 0);
 		snprintf(str, 15, "%02d:%02d:%02d:%03d\r\n", shour, smin, ssec, sms);
 		str[14] = 0;
 	sei();
+	
+	base_usart_send_string("PWM Frequenz:");
+	base_usart_send_decimal(pwm_cycle_frequency_hz);
+	base_usart_send_string("\r\n");
+	base_usart_send_string("PWM Cycle Ticks:");
+	base_usart_send_decimal(base_sw_pwm_ctx.cycle_tick_count);
+	base_usart_send_string("\r\n");
+	base_usart_send_string("PWM Motoren Duty Ticks:");
+	base_usart_send_string("\r\n0:");
+	base_usart_send_decimal(base_sw_pwm_ctx.pin[motor[0]].pwm_duty_ticks);
+	base_usart_send_string("\r\n1:");
+	base_usart_send_decimal(base_sw_pwm_ctx.pin[motor[1]].pwm_duty_ticks);
+	base_usart_send_string("\r\n2:");
+	base_usart_send_decimal(base_sw_pwm_ctx.pin[motor[2]].pwm_duty_ticks);
+	base_usart_send_string("\r\n3:");
+	base_usart_send_decimal(base_sw_pwm_ctx.pin[motor[3]].pwm_duty_ticks);
+	base_usart_send_string("\r\n");
 	
 	snprintf(msg, 64, "base_i2c_init\r\n");
 	c = 0;

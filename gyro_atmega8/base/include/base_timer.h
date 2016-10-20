@@ -9,7 +9,7 @@
 #ifndef BASE_TIMER_H_
 #define BASE_TIMER_H_
 
-#define BASE_TIMER0_PRESCALER (64)
+#define BASE_TIMER0_PRESCALER (8)
 
 typedef struct base_timer1_context
 {
