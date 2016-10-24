@@ -54,10 +54,9 @@ uint16_t base_sw_pwm_set_global_cycle(uint16_t hz)
 
 uint8_t base_sw_pwm_init(port_type_t port, pin_type_t pin)
 {
-	if(port == BASE_PORT_NONE || pin == BASE_PIN_NONE)
+	if((port == BASE_PORT_NONE) || (pin == BASE_PIN_NONE))
 		return BASE_MAX_PINS;
 		
-	++base_sw_pwm_ctx.config_count;
 	base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pin = pin;
 	base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].port = port;
 	
@@ -83,6 +82,7 @@ uint8_t base_sw_pwm_init(port_type_t port, pin_type_t pin)
 		break;
 	}
 	
+	++base_sw_pwm_ctx.config_count;
 	return base_sw_pwm_ctx.config_count-1;
 }
 
