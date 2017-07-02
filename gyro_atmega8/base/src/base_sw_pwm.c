@@ -18,7 +18,7 @@ void base_sw_pwm_ctx_init()
 	base_sw_pwm_ctx.cycle_tick = 0;
 	for(p = 0; p < BASE_MAX_PINS; ++p)
 	{
-		base_sw_pwm_ctx.pin[p].pwm_duty = 50;
+		base_sw_pwm_ctx.pin[p].pwm_duty = 0;
 		base_sw_pwm_ctx.pin[p].pwm_duty_ticks = 50;
 		base_sw_pwm_ctx.pin[p].pin = BASE_PIN_NONE;
 		base_sw_pwm_ctx.pin[p].port = BASE_PORT_NONE;
@@ -60,7 +60,7 @@ uint8_t base_sw_pwm_init(port_type_t port, pin_type_t pin)
 	base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pin = pin;
 	base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].port = port;
 	
-	base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pwm_duty = 50;
+	base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pwm_duty = 0;
 	base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pwm_duty_ticks = 
 		(uint16_t)(((uint32_t)base_sw_pwm_ctx.cycle_tick_count  * (uint32_t)base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pwm_duty) / (uint32_t)100);
 	

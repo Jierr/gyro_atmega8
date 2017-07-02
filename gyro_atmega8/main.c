@@ -166,6 +166,19 @@ ISR(USART_RXC_vect)
 		base_usart_send_string(" pwm_duty\r\n");
 #endif
 		break;
+		
+		case '0':
+		base_sw_pwm_set_duty(0, 0);
+		base_sw_pwm_set_duty(1, 0);
+		base_sw_pwm_set_duty(2, 0);
+		base_sw_pwm_set_duty(3, 0);
+		break;
+		case '1':
+		base_sw_pwm_set_duty(0, 100);
+		base_sw_pwm_set_duty(1, 100);
+		base_sw_pwm_set_duty(2, 100);
+		base_sw_pwm_set_duty(3, 100);
+		break;
 		default:
 			break;
 	}
@@ -321,71 +334,41 @@ int main()
 	base_usart_send_string("\r\n");
 	
 	snprintf(msg, 64, "base_i2c_init\r\n");
-	c = 0;
-	while (msg[c])
-	{
-		base_usart_send_byte((uint8_t)msg[c]);
-		++c;
-	}
+	base_usart_send_string(msg);
 	base_i2c_init();
+	
+	
 	snprintf(msg, 64, "base_i2c_set_slave\r\n");
-	c = 0;
-	while (msg[c])
-	{
-		base_usart_send_byte((uint8_t)msg[c]);
-		++c;
-	}
+	base_usart_send_string(msg);	
 	base_i2c_set_slave(&i2c_ctx, TWI_SLA_MPU6050);
+	base_i2c_wait();
+	
+	
 	snprintf(msg, 64, "base_i2c_start_read\r\n");
-	c = 0;
-	while (msg[c])
-	{
-		base_usart_send_byte((uint8_t)msg[c]);
-		++c;
-	}
-	if(i2c_ctx.twi_state == STATE_TWI_IDLE)
-		base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x75, recv_buf, 1);
+	base_usart_send_string(msg);
 		
-	while(i2c_ctx.twi_state != STATE_TWI_IDLE)
-	;
-	
+	if(base_i2c_is_ready())
+		base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x75, recv_buf, 1);
+	base_i2c_wait();	
 	snprintf(msg, 64, "Who am I? %X\r\n", recv_buf[0]);
-	c = 0;
-	while (msg[c])
-	{
-		base_usart_send_byte((uint8_t)msg[c]);
-		++c;
-	}
+	base_usart_send_string(msg);
 	
+
 	base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, recv_buf, 1);
-	
-	while(i2c_ctx.twi_state != STATE_TWI_IDLE)
-	;
-	
+	base_i2c_wait();	
 	snprintf(msg, 64, "PWR_MGMT_1 = %X\r\nWake UP!\r\n", recv_buf[0]);
-	c = 0;
-	while (msg[c])
-	{
-		base_usart_send_byte((uint8_t)msg[c]);
-		++c;
-	}
+	base_usart_send_string(msg);
+	
+	
 	trans_buf[0] = 1;
 	//trans_buf[0] = (recv_buf[0] & ~(1<<6)) + 1;
 	base_i2c_start_write(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, trans_buf, 1);
-
-	while(i2c_ctx.twi_state != STATE_TWI_IDLE)
-	;
-	base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, recv_buf, 1);
+	base_i2c_wait();
 	
-	while(i2c_ctx.twi_state != STATE_TWI_IDLE)
-	;		
-			snprintf(msg, 64, "PWR_MGMT_1 = %X\r\n", recv_buf[0]);
-			c = 0;
-			while (msg[c])
-			{
-				base_usart_send_byte((uint8_t)msg[c]);
-				++c;
-			}
+	base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, recv_buf, 1);
+	base_i2c_wait();		
+	snprintf(msg, 64, "PWR_MGMT_1 = %X\r\n", recv_buf[0]);
+	base_usart_send_string(msg);
 		
 
 	/*time(while) < 100ms
