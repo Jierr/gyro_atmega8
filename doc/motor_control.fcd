@@ -143,6 +143,6 @@ TY 325 100 4 3 0 0 0 * VCC
 TY 385 245 4 3 0 0 0 * VCC
 TY 275 245 4 3 0 0 0 * VCC
 TY 40 -80 4 3 0 0 0 * Text
-TY 360 210 4 3 0 0 0 * Source
+TY 340 210 4 3 90 0 0 * Source
 TY 320 220 4 3 0 0 0 * Drain
-TY 330 205 4 3 0 0 0 * Gate
+TY 360 210 4 3 0 0 0 * Gate
