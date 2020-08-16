@@ -1,0 +1,12 @@
+# 1.5.1
+# EAGLE Version 9.6.2 Copyright (c) 1988-2020 Autodesk, Inc.
+
+# exported from C:/Users/jierr/Documents/EAGLE/projects/quadcopter/motorcontrol.brd
+# at 16.08.2020 00:58
+
+# This Script changed Wire Width between 2.000 MM and 13.100 MM to 0.300 MM
+GRID MM FINEST;
+;
+DISPLAY NONE  1 16 17 18 19 20 21 22 23 24 25 26 27 28 39 40 41 42 43 48 49 51 52;
+SET DISPLAY_MODE REAL;
+GRID LAST;
