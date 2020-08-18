@@ -1,3 +1,6 @@
 gyro_atmega8/Debug/
 gyro_atmega8/Release/
 .vs/
+*.pro
+*.b#*
+*.s#*
