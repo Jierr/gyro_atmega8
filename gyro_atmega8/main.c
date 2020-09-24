@@ -14,28 +14,27 @@
 #include "abstract_7segment.h"
 #include <avr/interrupt.h>
 
-
 #define UART_MAX_LENGTH 80
 #define I2C_RECEIVE_BUFFER_LENGTH 16
 #define I2C_TRANSMIT_BUFFER_LENGTH 16
 
-char msg[UART_MAX_LENGTH] = {0,};
-volatile uint8_t dataIn = 0;
-volatile uint16_t ms = 0;
-volatile uint8_t sec = 0;
-volatile uint8_t min = 0;
-volatile uint8_t hour = 0;
+uint8_t i2c_transmit_buffer[I2C_TRANSMIT_BUFFER_LENGTH] = {0,};
+uint8_t i2c_receive_buffer[I2C_RECEIVE_BUFFER_LENGTH] = {0,};
+char usart_buffer[UART_MAX_LENGTH] = {0,};
+volatile uint8_t usart_data_in = 0;
+volatile uint16_t timer2_milliseconds = 0;
+volatile uint8_t timer2_seconds = 0;
+volatile uint8_t timer2_minutes = 0;
+volatile uint8_t timer2_hours = 0;
 
 /* signals, ISR */
-volatile uint8_t transEn = 0;
+volatile uint8_t signal_100ms_event = 0;
 
-
-void print_mp6050_info();
-
+void mp6050_print_info();
 
 
 /*fips = interrupts per second*/
-inline void initTimerCTC(uint32_t fips, uint16_t prescaler, uint8_t async)
+inline void timer2_ctc_interrupt_init(uint32_t fips, uint16_t prescaler, uint8_t async)
 {
 	uint8_t sreg = SREG;
 	cli();
@@ -102,41 +101,41 @@ ISR(USART_RXC_vect)
 	uint8_t sreg = SREG;
 	cli();
 	
-	#if 0
+#if 0
 	DDRB |= (1<<DDB0);
 	if(PORTB & (1<<PB0))
 	PORTB &= ~(1<<PB0);
 	else
 	PORTB |= (1<<PB0);
-	#endif
+#endif
 	
 
-	dataIn = UDR;
-	switch (dataIn)
+	usart_data_in = UDR;
+	switch (usart_data_in)
 	{
 		case 'h':
-		hour=(hour+1)%24;
+		timer2_hours=(timer2_hours+1)%24;
 		break;
 		case 'j':
-		hour=(24+hour-1)%24;
+		timer2_hours=(24+timer2_hours-1)%24;
 		break;
 		case 'm':
-		min=(min+1)%60;
+		timer2_minutes=(timer2_minutes+1)%60;
 		break;
 		case ',':
-		min=(60+min-1)%60;
+		timer2_minutes=(60+timer2_minutes-1)%60;
 		break;
 		case 's':
-		sec=(sec+1)%60;
+		timer2_seconds=(timer2_seconds+1)%60;
 		break;
 		case 'd':
-		sec=(60+sec-1)%60;
+		timer2_seconds=(60+timer2_seconds-1)%60;
 		break;
 		case 'u':
-		ms=(ms+100)%1000;
+		timer2_milliseconds=(timer2_milliseconds+100)%1000;
 		break;
 		case 'i':
-		ms=(1000+ms-100)%1000;
+		timer2_milliseconds=(1000+timer2_milliseconds-100)%1000;
 		break;
 		case 'y':
 		//base_timer1_set_pwm_change_duty_by(-1);
@@ -147,11 +146,11 @@ ISR(USART_RXC_vect)
 		base_sw_pwm_duty(3, -1);
 		
 		
-		#if CONFIG_DEBUG_GEN
+#if CONFIG_DEBUG_GEN
 		base_usart_send_string(":ISR(USART_RXC_vect):-1> ");
 		base_usart_send_decimal(base_sw_pwm_ctx.pin[0].pwm_duty);
 		base_usart_send_string(" pwm_duty\r\n");
-		#endif
+#endif
 		break;
 		case 'x':
 		//base_timer1_set_pwm_change_duty_by(1);
@@ -161,11 +160,11 @@ ISR(USART_RXC_vect)
 		base_sw_pwm_duty(2, 1);
 		base_sw_pwm_duty(3, 1);
 		
-		#if CONFIG_DEBUG_GEN
+#if CONFIG_DEBUG_GEN
 		base_usart_send_string(":ISR(USART_RXC_vect):+1> ");
 		base_usart_send_decimal(base_sw_pwm_ctx.pin[0].pwm_duty);
 		base_usart_send_string(" pwm_duty\r\n");
-		#endif
+#endif
 		break;
 		
 		case '0':
@@ -197,46 +196,46 @@ ISR(TIMER0_OVF_vect)
 	base_timer0_context.tick+=1;
 	base_sw_pwm_timer0_callback();
 	
-	#if 0
+#if 0
 	a = base_timer0_context.tick;
 	b = base_timer0_s_ticks(1);
 	mod = a%b;
 	if(mod == 0)
-	{		
+	{
 		DDRB |= (1<<DDB0);
 		if(PORTB & (1<<PB0))
 		PORTB &= ~(1<<PB0);
 		else
 		PORTB |= (1<<PB0);
 	}
-	#endif
+#endif
 
 	SREG = sreg;
 }
 
 ISR(TIMER2_COMP_vect)
-{	
-	#if CONFIG_TIME == 1
+{
+#if CONFIG_TIME == 1
 	static uint8_t msTimer = 0;
 	msTimer+=1;
 	if (msTimer == 100)
 	{
-		ms=(ms+100)%1000;
-		if (!ms)
+		timer2_milliseconds=(timer2_milliseconds+100)%1000;
+		if (!timer2_milliseconds)
 		{
-			sec=(sec+1)%60;
-			if (!sec)
+			timer2_seconds=(timer2_seconds+1)%60;
+			if (!timer2_seconds)
 			{
-				min=(min+1)%60;
-				if (!min)
-				hour=(hour+1)%24;
+				timer2_minutes=(timer2_minutes+1)%60;
+				if (!timer2_minutes)
+				timer2_hours=(timer2_hours+1)%24;
 			}
 		}
 
-		transEn = 1;
+		signal_100ms_event = 1;
 		msTimer = 0;
 	}
-	#endif
+#endif
 	
 	//abstract_7segment_display(sec/10, sec%10);
 }
@@ -250,8 +249,6 @@ int main()
 	uint8_t smin = 0;
 	uint8_t shour= 0;
 	uint8_t ms100 = 0;
-	uint8_t trans_buf[I2C_TRANSMIT_BUFFER_LENGTH] = {0,};
-	uint8_t recv_buf[I2C_RECEIVE_BUFFER_LENGTH] = {0,};
 	uint16_t pwm_cycle_frequency_hz = 0;
 
 	cli();
@@ -264,8 +261,8 @@ int main()
 	//led
 	DDRB |= (1<<DDB0);
 	//base_timer1_init();
-	/* OCR = 249, 1 Interrupt per milisecond --> 1000 ips */
-	initTimerCTC(1000UL, 64, 0);
+	/* OCR = 249, 1 Interrupt per milisecond --> 1000 ips ISR = TIMER2_COMP_vect */
+	timer2_ctc_interrupt_init(1000UL, 64, 0);
 	base_usart_init(MUBRR);
 	//7segment
 	//abstract_7segment_init();
@@ -280,7 +277,7 @@ int main()
 	motor[3] = base_sw_pwm_init(BASE_PORTD, BASE_PIN8);
 	sei();
 	
-	#if CONFIG_DEBUG_GEN
+#if CONFIG_DEBUG_GEN
 	base_usart_send_string("TIMER0 Ticks pro Sekunde: '");
 	base_usart_send_decimal(base_timer0_context.s_tick_count);
 	base_usart_send_string("'\r\n");
@@ -306,27 +303,27 @@ int main()
 	base_usart_send_string("'\r\n3: '");
 	base_usart_send_decimal(base_sw_pwm_ctx.pin[motor[3]].pwm_duty_ticks);
 	base_usart_send_string("'\r\n");
-	snprintf(msg, UART_MAX_LENGTH, "Initialize I2C\r\n");
-	base_usart_send_string(msg);
-	#endif
+	snprintf(usart_buffer, UART_MAX_LENGTH, "Initialize I2C\r\n");
+	base_usart_send_string(usart_buffer);
+#endif
 	base_i2c_init();
 	base_i2c_set_slave(&i2c_ctx, TWI_SLA_MPU6050);
 	base_i2c_wait();
 	if(base_i2c_is_ready())
-	base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x75, recv_buf, 1);
+	base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x75, i2c_receive_buffer, 1);
 	base_i2c_wait();
 	
-	#if CONFIG_DEBUG_GEN
-	snprintf(msg, UART_MAX_LENGTH, "I2C Identity %X\r\n", recv_buf[0]);
-	base_usart_send_string(msg);
-	#endif
-	base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, recv_buf, 1);
+#if CONFIG_DEBUG_GEN
+	snprintf(usart_buffer, UART_MAX_LENGTH, "I2C Identity %X\r\n", i2c_receive_buffer[0]);
+	base_usart_send_string(usart_buffer);
+#endif
+	base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, i2c_receive_buffer, 1);
 	base_i2c_wait();
-	trans_buf[0] = 1;
+	i2c_transmit_buffer[0] = 1;
 	//trans_buf[0] = (recv_buf[0] & ~(1<<6)) + 1;
-	base_i2c_start_write(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, trans_buf, 1);
+	base_i2c_start_write(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, i2c_transmit_buffer, 1);
 	base_i2c_wait();
-	base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, recv_buf, 1);
+	base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, i2c_receive_buffer, 1);
 	base_i2c_wait();
 
 	/*while loop only does tasks every 100ms*/
@@ -334,39 +331,38 @@ int main()
 	_delay_ms(500);
 	while (1)
 	{
-		#if CONFIG_DEBUG_MP6050 == 1
-		if (transEn)
+#if CONFIG_DEBUG_MP6050 == 1
+		if (signal_100ms_event)
 		{
 			/*when preparing components for string no interrupts allowed*/
 			++ms100;
 			cli();
-			transEn = 0;
-			sms=ms;
-			ssec = sec;
-			smin = min;
-			shour = hour;
+			signal_100ms_event = 0;
+			sms=timer2_milliseconds;
+			ssec = timer2_seconds;
+			smin = timer2_minutes;
+			shour = timer2_hours;
 			sei();
 		}
 
-		if(ms100 == 5)
+		if(ms100 == 1)
 		{
 			ms100 = 0;
 			// Clear everything from cursor downwards
 			base_usart_send_string("\033[0J");
-			snprintf(msg, UART_MAX_LENGTH, "%02d:%02d:%02d:%03d\r\n", shour, smin, ssec, sms);
-			base_usart_send_string(msg);
-			print_mp6050_info();
+			snprintf(usart_buffer, UART_MAX_LENGTH, "%02d:%02d:%02d:%03d\r\n", shour, smin, ssec, sms);
+			base_usart_send_string(usart_buffer);
+			mp6050_print_info();
 			// Place cursor to the beginning
 			base_usart_send_string("\r\033[4A");
 		}
-		#endif
+#endif
 	}
 	return 0;
 }
 
-void print_mp6050_info()
+void mp6050_print_info()
 {
-	uint8_t recv_buf[I2C_RECEIVE_BUFFER_LENGTH] = {0,};
 	short rtemp = 0;
 	short rgyro[3] = {0,};
 	short raccel[3] = {0,};
@@ -377,63 +373,63 @@ void print_mp6050_info()
 	if(base_i2c_is_ready())
 	{
 		base_i2c_wait();
-		base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x43, recv_buf, 6);
+		base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x43, i2c_receive_buffer, 6);
 		base_i2c_wait();
 		// rgyro: 0,1,2 = around axis x,y,z
-		rgyro[0] = (recv_buf[0] << 8) | recv_buf[1]; rgyro[0] = rgyro[0] / 131 + 1;
-		rgyro[1] = (recv_buf[2] << 8) | recv_buf[3]; rgyro[1] = rgyro[1] / 131 - 2;
-		rgyro[2] = (recv_buf[4] << 8) | recv_buf[5]; rgyro[2] = rgyro[2] / 131 + 1;
+		rgyro[0] = (i2c_receive_buffer[0] << 8) | i2c_receive_buffer[1]; rgyro[0] = rgyro[0] / 131 + 1;
+		rgyro[1] = (i2c_receive_buffer[2] << 8) | i2c_receive_buffer[3]; rgyro[1] = rgyro[1] / 131 - 2;
+		rgyro[2] = (i2c_receive_buffer[4] << 8) | i2c_receive_buffer[5]; rgyro[2] = rgyro[2] / 131 + 1;
 
-		snprintf(msg, UART_MAX_LENGTH, "Gyro: X(%5hi) Y(%5hi) Z(%5hi) - ",
+		snprintf(usart_buffer, UART_MAX_LENGTH, "Gyro: X(%5hi) Y(%5hi) Z(%5hi) - ",
 		(int)rgyro[0], (int)rgyro[1], (int)rgyro[2]);
-		base_usart_send_string(msg);
-		base_usart_send_byte_hex_string(recv_buf, 6);
+		base_usart_send_string(usart_buffer);
+		base_usart_send_byte_hex_string(i2c_receive_buffer, 6);
 		base_usart_send_string("\r\n");
 	}
 	else
 	{
-		snprintf(msg, UART_MAX_LENGTH, "I2C NOK: ");
-		base_usart_send_string(msg);
+		snprintf(usart_buffer, UART_MAX_LENGTH, "I2C NOK: ");
+		base_usart_send_string(usart_buffer);
 	}
 	
 	if(base_i2c_is_ready())
 	{
 		//Accelerator, Error z-Axis -0.15 to -0.2g, x-Axis -0.03 to -0.07g
-		base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x3B, recv_buf, 6);
+		base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x3B, i2c_receive_buffer, 6);
 		base_i2c_wait();
 		
 		// raccel 0,1,2 = along axis x,y,z
-		raccel[0] = (recv_buf[0] << 8) | recv_buf[1]; tmp32= ((int32_t)raccel[0] * 100) / 16384; raccel[0] = (short)tmp32;
-		raccel[1] = (recv_buf[2] << 8) | recv_buf[3]; tmp32= ((int32_t)raccel[1] * 100) / 16384; raccel[1] = (short)tmp32 + 2;
-		raccel[2] = (recv_buf[4] << 8) | recv_buf[5]; tmp32= ((int32_t)raccel[2] * 100) / 16384; raccel[2] = (short)tmp32 + 15;
+		raccel[0] = (i2c_receive_buffer[0] << 8) | i2c_receive_buffer[1]; tmp32= ((int32_t)raccel[0] * 100) / 16384; raccel[0] = (short)tmp32;
+		raccel[1] = (i2c_receive_buffer[2] << 8) | i2c_receive_buffer[3]; tmp32= ((int32_t)raccel[1] * 100) / 16384; raccel[1] = (short)tmp32 + 2;
+		raccel[2] = (i2c_receive_buffer[4] << 8) | i2c_receive_buffer[5]; tmp32= ((int32_t)raccel[2] * 100) / 16384; raccel[2] = (short)tmp32 + 15;
 
 		//
-		snprintf(msg, UART_MAX_LENGTH, "Accel: (%5hi)/100,(%5hi)/100,(%5hi)/100\r\n",
+		snprintf(usart_buffer, UART_MAX_LENGTH, "Accel: (%5hi)/100,(%5hi)/100,(%5hi)/100\r\n",
 		raccel[0], raccel[1], raccel[2]);
-		base_usart_send_string(msg);
+		base_usart_send_string(usart_buffer);
 	}
 	else
 	{
-		snprintf(msg, UART_MAX_LENGTH, "I2C NOK: ");
-		base_usart_send_string(msg);
+		snprintf(usart_buffer, UART_MAX_LENGTH, "I2C NOK: ");
+		base_usart_send_string(usart_buffer);
 	}
 	
 	if(base_i2c_is_ready())
 	{
 		//Temperature Error +4 degree Celsius
-		base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x41, recv_buf, 2);
+		base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x41, i2c_receive_buffer, 2);
 		base_i2c_wait();
 		conv = (char*)&rtemp;
-		conv[0] = recv_buf[1];
-		conv[1] = recv_buf[0];
+		conv[0] = i2c_receive_buffer[1];
+		conv[1] = i2c_receive_buffer[0];
 		//rtemp = ((short)recv_buf[0] << 8) | (short)recv_buf[1];
 		rtemp = rtemp / 340 + 37 - 4;
-		snprintf(msg, UART_MAX_LENGTH, "Temp:  %5hi\r\n", rtemp);
-		base_usart_send_string(msg);
+		snprintf(usart_buffer, UART_MAX_LENGTH, "Temp:  %5hi\r\n", rtemp);
+		base_usart_send_string(usart_buffer);
 	}
 	else
 	{
-		snprintf(msg, UART_MAX_LENGTH, "I2C NOK: ");
-		base_usart_send_string(msg);
+		snprintf(usart_buffer, UART_MAX_LENGTH, "I2C NOK: ");
+		base_usart_send_string(usart_buffer);
 	}
 }
