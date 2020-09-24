@@ -150,9 +150,9 @@ void base_usart_send_byte_hex_string(uint8_t* data, uint8_t len)
 {
 	uint8_t c = 0;
 	
-	base_usart_send_string("0x");
-	for(c = 0; c < len; ++len)
-	{		
+	for(c = 0; c < len; ++c)
+	{
+		base_usart_send_string("0x");
 		base_usart_send_byte_hex(data[c]);
 		base_usart_send_byte(' ');
 	}

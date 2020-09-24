@@ -16,9 +16,9 @@
 #define UF_CPU 16000000UL
 #define MUBRR (UF_CPU/((BAUD*16)) - 1)
 
-#define CONFIG_DEBUG_GEN 1
-#define CONFIG_DEBUG_MP6050 0
-#define CONFIG_TIME 0
+#define CONFIG_DEBUG_GEN 0
+#define CONFIG_DEBUG_MP6050 1
+#define CONFIG_TIME 1
 
 
 #include <avr/io.h>
