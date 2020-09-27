@@ -3,7 +3,7 @@
  *
  * Created: 11.10.2016 00:02:22
  *  Author: Jierr
- */ 
+ */
 
 
 #ifndef BASE_SW_PWM_H_
@@ -15,19 +15,19 @@
 
 typedef struct base_sw_pwm_config
 {
-	port_type_t port;
-	pin_type_t pin;
-	uint8_t pwm_duty;
-	uint16_t pwm_duty_ticks;
+  port_type_t port;
+  pin_type_t pin;
+  uint8_t pwm_duty;
+  uint16_t pwm_duty_ticks;
 } base_sw_pwm_config_t;
 
 typedef struct base_sw_pwm_ctx
 {
-	base_sw_pwm_config_t pin[BASE_MAX_PINS];
-	uint8_t config_count;
-	uint16_t cycle_tick_count;
-	uint16_t cycle_tick;
-	
+  base_sw_pwm_config_t pin[BASE_MAX_PINS];
+  uint8_t config_count;
+  uint16_t cycle_tick_count;
+  uint16_t cycle_tick;
+
 } base_sw_pwm_ctx_t;
 
 extern volatile base_sw_pwm_ctx_t base_sw_pwm_ctx;

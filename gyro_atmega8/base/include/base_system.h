@@ -3,7 +3,7 @@
  *
  * Created: 02.07.2017 17:32:11
  *  Author: Jierr
- */ 
+ */
 
 
 #ifndef BASE_SYSTEM_H_

@@ -3,7 +3,7 @@
  *
  * Created: 06.08.2016 19:13:09
  *  Author: Jierr
- */ 
+ */
 
 
 #ifndef BASE_USART_H_

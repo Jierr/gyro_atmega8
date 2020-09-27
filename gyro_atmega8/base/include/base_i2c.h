@@ -3,7 +3,7 @@
  *
  * Created: 06.08.2016 18:38:23
  *  Author: Jierr
- */ 
+ */
 
 
 #ifndef BASE_I2C_H_
@@ -31,15 +31,15 @@
 
 typedef struct
 {
-	uint8_t twi_state;
-	uint8_t slave;
-	uint8_t slave_local_addr;
-	uint8_t recv;
-	uint8_t trans;
-	uint8_t bytes;
-	uint8_t* recv_buf;
-	uint8_t* trans_buf;
-	uint8_t curr;
+  uint8_t twi_state;
+  uint8_t slave;
+  uint8_t slave_local_addr;
+  uint8_t recv;
+  uint8_t trans;
+  uint8_t bytes;
+  uint8_t* recv_buf;
+  uint8_t* trans_buf;
+  uint8_t curr;
 } i2c_ctx_t;
 
 extern volatile i2c_ctx_t i2c_ctx;
