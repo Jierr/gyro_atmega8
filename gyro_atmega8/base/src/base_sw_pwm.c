@@ -60,10 +60,7 @@ uint8_t base_sw_pwm_init(port_type_t port, pin_type_t pin)
   base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pin = pin;
   base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].port = port;
 
-  base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pwm_duty = 0;
-  base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pwm_duty_ticks =
-    (uint16_t)(((uint32_t)base_sw_pwm_ctx.cycle_tick_count  * (uint32_t)base_sw_pwm_ctx.pin[base_sw_pwm_ctx.config_count].pwm_duty) / (uint32_t)100);
-
+  base_sw_pwm_set_duty(base_sw_pwm_ctx.config_count, 0);
   switch(port)
   {
     case BASE_PORTB:
@@ -98,23 +95,14 @@ void base_sw_pwm_set_duty(uint8_t pin_nr, int8_t percent)
   }
 
   base_sw_pwm_ctx.pin[pin_nr].pwm_duty = percent;
-  base_sw_pwm_ctx.pin[pin_nr].pwm_duty_ticks = (uint16_t)(((uint32_t)base_sw_pwm_ctx.cycle_tick_count  * (uint32_t)percent) / (uint32_t)100);
+  base_sw_pwm_ctx.pin[pin_nr].pwm_duty_ticks = (uint16_t)(((uint32_t)
+      base_sw_pwm_ctx.cycle_tick_count  * (uint32_t)percent) / (uint32_t)100);
 }
 
 void base_sw_pwm_duty(uint8_t pin_nr, int8_t percent)
 {
   percent += base_sw_pwm_ctx.pin[pin_nr].pwm_duty;
-  if(percent > 100)
-  {
-    percent = 100;
-  }
-  else if(percent < 0)
-  {
-    percent = 0;
-  }
-
-  base_sw_pwm_ctx.pin[pin_nr].pwm_duty = percent;
-  base_sw_pwm_ctx.pin[pin_nr].pwm_duty_ticks = (uint16_t)(((uint32_t)base_sw_pwm_ctx.cycle_tick_count  * (uint32_t)percent) / (uint32_t)100);
+  base_sw_pwm_set_duty(pin_nr, percent);
 }
 
 
@@ -122,8 +110,6 @@ void base_sw_pwm_duty(uint8_t pin_nr, int8_t percent)
 void base_sw_pwm_timer0_callback()
 {
   uint8_t p = 0;
-
-
   for(p = 0; p < base_sw_pwm_ctx.config_count; ++p)
   {
     if(base_sw_pwm_ctx.pin[p].pwm_duty_ticks == 0)
@@ -197,11 +183,7 @@ void base_sw_pwm_timer0_callback()
         }
       }
     }
-
-
-
   }
-
   ++base_sw_pwm_ctx.cycle_tick;
   if(base_sw_pwm_ctx.cycle_tick >= base_sw_pwm_ctx.cycle_tick_count)
   {
@@ -213,7 +195,4 @@ void base_sw_pwm_timer0_callback()
     */
     base_sw_pwm_ctx.cycle_tick = 0;
   }
-
-
-
 }

@@ -49,22 +49,12 @@ void base_usart_send_byte_hex(uint8_t data)
   switch(high)
   {
     case 10:
-      base_usart_send_byte('A');
-      break;
     case 11:
-      base_usart_send_byte('B');
-      break;
     case 12:
-      base_usart_send_byte('C');
-      break;
     case 13:
-      base_usart_send_byte('D');
-      break;
     case 14:
-      base_usart_send_byte('E');
-      break;
     case 15:
-      base_usart_send_byte('F');
+      base_usart_send_byte(high - 10 + 'A');
       break;
     default:
       base_usart_send_byte(high + '0');
@@ -74,30 +64,18 @@ void base_usart_send_byte_hex(uint8_t data)
   switch(low)
   {
     case 10:
-      base_usart_send_byte('A');
-      break;
     case 11:
-      base_usart_send_byte('B');
-      break;
     case 12:
-      base_usart_send_byte('C');
-      break;
     case 13:
-      base_usart_send_byte('D');
-      break;
     case 14:
-      base_usart_send_byte('E');
-      break;
     case 15:
-      base_usart_send_byte('F');
+      base_usart_send_byte(low - 10 + 'A');
       break;
     default:
       base_usart_send_byte(low + '0');
       break;
   }
 }
-
-
 
 void base_usart_send_decimal(int32_t data)
 {

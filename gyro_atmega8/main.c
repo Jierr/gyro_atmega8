@@ -15,9 +15,9 @@
 #include <avr/interrupt.h>
 
 #define UART_MAX_LENGTH 80
-#define I2C_RECEIVE_BUFFER_LENGTH 16
-#define I2C_TRANSMIT_BUFFER_LENGTH 16
-#define MP6050_GYRO_ERROR_ACCUMULATION 100
+#define I2C_RECEIVE_BUFFER_LENGTH 8
+#define I2C_TRANSMIT_BUFFER_LENGTH 8
+#define MP6050_GYRO_ERROR_ACCUMULATION 150
 #define MP6050_GYRO_ERROR_DISCARD 10
 #define MP6050_READ_INTERVAL_MS 10
 #define VIEW_ANGULAR_HYSTERESIS 0.01f
@@ -278,11 +278,6 @@ ISR(TIMER2_COMP_vect)
 int main()
 {
   uint8_t motor[4] = {0,};
-  uint16_t sms = 0;
-  uint8_t ssec = 0;
-  uint8_t smin = 0;
-  uint8_t shour = 0;
-  uint8_t ms100 = 0;
   uint16_t pwm_cycle_frequency_hz = 0;
 
   cli();
@@ -343,8 +338,7 @@ int main()
   base_i2c_init();
   base_i2c_set_slave(&i2c_ctx, TWI_SLA_MPU6050);
   base_i2c_wait();
-  if(base_i2c_is_ready())
-    base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x75, i2c_receive_buffer, 1);
+  base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x75, i2c_receive_buffer, 1);
   base_i2c_wait();
 
 #if CONFIG_DEBUG_GEN
@@ -363,6 +357,7 @@ int main()
   /*while loop only does tasks every 100ms*/
   //base_usart_send_string("Initialization complete.\r\n");
 
+  uint8_t ms100 = 0;
   mp6050_gyro_t raw_gyro = {0, 0, 0, 0, 0, 0, 0};
   mp6050_accel_t raw_accel = {0, 0, 0};
   angle_t angle = {0.0f, 0.0f, 0.0f};
@@ -378,6 +373,12 @@ int main()
       cli();
       signal_100ms_event = 0;
       /*
+
+      uint16_t sms = 0;
+      uint8_t ssec = 0;
+      uint8_t smin = 0;
+      uint8_t shour = 0;
+
       sms = timer2_milliseconds;
       ssec = timer2_seconds;
       smin = timer2_minutes;
@@ -421,7 +422,6 @@ int main()
 
 int mp6050_get_gyro(mp6050_gyro_t* raw)
 {
-  base_i2c_wait();
   base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x43, i2c_receive_buffer, 6);
   base_i2c_wait();
 
@@ -436,7 +436,6 @@ int mp6050_get_accel(mp6050_accel_t* raw)
 {
   if(base_i2c_is_ready())
   {
-    base_i2c_wait();
     base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x3B, i2c_receive_buffer, 6);
     base_i2c_wait();
 
@@ -473,18 +472,18 @@ int mp6050_gyro_error(mp6050_gyro_t* gyro)
 void view_calc_current_angles(angle_t* angle, angular_velocity_t* angular_velocity,
                               const mp6050_gyro_t* gyro, short delta_time_milliseconds)
 {
-  float delta = (float)delta_time_milliseconds * 0.001f;
+  float delta = (float)delta_time_milliseconds * 0.002f;
   float xerror = (float)gyro->xerror / (float)MP6050_GYRO_ERROR_ACCUMULATION;
   float yerror = (float)gyro->yerror / (float)MP6050_GYRO_ERROR_ACCUMULATION;
   float zerror = (float)gyro->zerror / (float)MP6050_GYRO_ERROR_ACCUMULATION;
 
   const float angular_change_min = VIEW_ANGULAR_HYSTERESIS;
-  float current_roll = (((float)gyro->x - xerror) / 131.0f  * delta + angular_velocity->x) *
-                       0.5;
-  float current_pitch = (((float)gyro->y - yerror) / 131.0f * delta + angular_velocity->y) *
-                        0.5;
-  float current_yaw = (((float)gyro->z - zerror) / 131.0f * delta + angular_velocity->z) *
-                      0.5;
+  float current_roll = ((((float)gyro->x - xerror)  +
+                         angular_velocity->x) * delta * 0.5f) / 131.0f;
+  float current_pitch = ((((float)gyro->y - yerror) +
+                          angular_velocity->y) * delta * 0.5f) / 131.0f;
+  float current_yaw = ((((float)gyro->z - zerror) +
+                        angular_velocity->z) * delta * 0.5f) / 131.0f;
 
   if(current_roll > angular_change_min || current_roll < -angular_change_min)
     angle->xroll = angle->xroll + current_roll;
@@ -502,9 +501,9 @@ void view_calc_current_angles(angle_t* angle, angular_velocity_t* angular_veloci
                   float)gyro->z / 131.0f) * delta * delta;
   */
 
-  angular_velocity->x = (((float)gyro->x - xerror) / 131.0f) * delta;
-  angular_velocity->y = (((float)gyro->y - yerror) / 131.0f) * delta;
-  angular_velocity->z = (((float)gyro->z - zerror) / 131.0f) * delta;
+  angular_velocity->x = (((float)gyro->x - xerror)) * delta;
+  angular_velocity->y = (((float)gyro->y - yerror)) * delta;
+  angular_velocity->z = (((float)gyro->z - zerror)) * delta;
 
 }
 
