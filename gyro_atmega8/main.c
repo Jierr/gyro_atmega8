@@ -5,6 +5,7 @@
 #include <util/twi.h>
 #include <util/delay.h>
 #include <stdio.h>
+#include <math.h>
 
 
 #include "base_i2c.h"
@@ -17,10 +18,30 @@
 #define UART_MAX_LENGTH 80
 #define I2C_RECEIVE_BUFFER_LENGTH 8
 #define I2C_TRANSMIT_BUFFER_LENGTH 8
-#define MP6050_GYRO_ERROR_ACCUMULATION 150
-#define MP6050_GYRO_ERROR_DISCARD 10
+#define MP6050_GYRO_ERROR_ACCUMULATION 800
+#define MP6050_GYRO_ERROR_DISCARD 200
+#define MP6050_ACCEL_ERROR_ACCUMULATION 100
+#define MP6050_ACCEL_ERROR_DISCARD 20
 #define MP6050_READ_INTERVAL_MS 10
-#define VIEW_ANGULAR_HYSTERESIS 0.01f
+
+/*
+0 250°/s  131 LSB/°/s
+1 500°/s  65.5 LSB/°/s
+2 1000°/s 32.8 LSB/°/s
+3 2000°/s 16.4 LSB/°/s
+*/
+#define MP6050_GYRO_VALUE_SCALING 32.8f
+
+/*
+0 2g  16384 LSB/g
+1 4g  8192 LSB/g
+2 8g  4096 LSB/g
+3 16g 2048 LSB/g
+*/
+#define MP6050_ACCEL_VALUE_SCALING 16384.0f
+
+#define VIEW_GYRO_HIGHPASS  0.98f
+#define VIEW_ACCEL_LOWPASS  (1.0f - VIEW_GYRO_HIGHPASS)
 
 uint8_t i2c_transmit_buffer[I2C_TRANSMIT_BUFFER_LENGTH] = {0,};
 uint8_t i2c_receive_buffer[I2C_RECEIVE_BUFFER_LENGTH] = {0,};
@@ -40,9 +61,9 @@ typedef struct
   short x;
   short y;
   short z;
-  short xerror;
-  short yerror;
-  short zerror;
+  int32_t xerror;
+  int32_t yerror;
+  int32_t zerror;
   unsigned short error_init_cycles;
 } mp6050_gyro_t;
 
@@ -65,6 +86,10 @@ typedef struct
   short x;
   short y;
   short z;
+  int32_t xerror;
+  int32_t yerror;
+  int32_t zerror;
+  unsigned short error_init_cycles;
 } mp6050_accel_t;
 
 typedef struct
@@ -75,10 +100,11 @@ typedef struct
 } force_t;
 
 int mp6050_get_gyro(mp6050_gyro_t* raw);
-int mp6050_gyro_error(mp6050_gyro_t* gyro);
+int mp6050_get_gyro_error(mp6050_gyro_t* gyro);
 int mp6050_get_accel(mp6050_accel_t* raw);
+int mp6050_get_accel_error(mp6050_accel_t* accel);
 void view_calc_current_angles(angle_t* angle, angular_velocity_t* angular_velocity,
-                              const mp6050_gyro_t* gyro, short delta_time_milliseconds);
+                              const mp6050_gyro_t* gyro, const mp6050_accel_t* accel, short delta_time_milliseconds);
 void view_calc_current_forces(force_t* force, const mp6050_accel_t* accel,
                               short delta_time_milliseconds);
 
@@ -105,30 +131,30 @@ inline void timer2_ctc_interrupt_init(uint32_t fips, uint16_t prescaler, uint8_t
   /* CS22:0 */
   switch (prescaler)
   {
-    case 1:
-      TCCR2 |= 0x01;
-      break;
-    case 8:
-      TCCR2 |= 0x02;
-      break;
-    case 32:
-      TCCR2 |= 0x03;
-      break;
-    case 64:
-      TCCR2 |= 0x04;
-      break;
-    case 128:
-      TCCR2 |= 0x05;
-      break;
-    case 256:
-      TCCR2 |= 0x06;
-      break;
-    case 1024:
-      TCCR2 |= 0x07;
-      break;
-    default:
-      TCCR2 |= 0x00;
-      break;
+  case 1:
+    TCCR2 |= 0x01;
+    break;
+  case 8:
+    TCCR2 |= 0x02;
+    break;
+  case 32:
+    TCCR2 |= 0x03;
+    break;
+  case 64:
+    TCCR2 |= 0x04;
+    break;
+  case 128:
+    TCCR2 |= 0x05;
+    break;
+  case 256:
+    TCCR2 |= 0x06;
+    break;
+  case 1024:
+    TCCR2 |= 0x07;
+    break;
+  default:
+    TCCR2 |= 0x00;
+    break;
   }
 
   /* wait for everything to finish*/
@@ -165,50 +191,50 @@ ISR(USART_RXC_vect)
   usart_data_in = UDR;
   switch (usart_data_in)
   {
-    case 'y':
-      //base_timer1_set_pwm_change_duty_by(-1);
+  case 'y':
+    //base_timer1_set_pwm_change_duty_by(-1);
 
-      base_sw_pwm_duty(0, -1);
-      base_sw_pwm_duty(1, -1);
-      base_sw_pwm_duty(2, -1);
-      base_sw_pwm_duty(3, -1);
+    base_sw_pwm_duty(0, -1);
+    base_sw_pwm_duty(1, -1);
+    base_sw_pwm_duty(2, -1);
+    base_sw_pwm_duty(3, -1);
 
-
-#if CONFIG_DEBUG_GEN
-      base_usart_send_string(":ISR(USART_RXC_vect):-1> ");
-      base_usart_send_decimal(base_sw_pwm_ctx.pin[0].pwm_duty);
-      base_usart_send_string(" pwm_duty\r\n");
-#endif
-      break;
-    case 'x':
-      //base_timer1_set_pwm_change_duty_by(1);
-
-      base_sw_pwm_duty(0, 1);
-      base_sw_pwm_duty(1, 1);
-      base_sw_pwm_duty(2, 1);
-      base_sw_pwm_duty(3, 1);
 
 #if CONFIG_DEBUG_GEN
-      base_usart_send_string(":ISR(USART_RXC_vect):+1> ");
-      base_usart_send_decimal(base_sw_pwm_ctx.pin[0].pwm_duty);
-      base_usart_send_string(" pwm_duty\r\n");
+    base_usart_send_string(":ISR(USART_RXC_vect):-1> ");
+    base_usart_send_decimal(base_sw_pwm_ctx.pin[0].pwm_duty);
+    base_usart_send_string(" pwm_duty\r\n");
 #endif
-      break;
+    break;
+  case 'x':
+    //base_timer1_set_pwm_change_duty_by(1);
 
-    case '0':
-      base_sw_pwm_set_duty(0, 0);
-      base_sw_pwm_set_duty(1, 0);
-      base_sw_pwm_set_duty(2, 0);
-      base_sw_pwm_set_duty(3, 0);
-      break;
-    case '1':
-      base_sw_pwm_set_duty(0, 100);
-      base_sw_pwm_set_duty(1, 100);
-      base_sw_pwm_set_duty(2, 100);
-      base_sw_pwm_set_duty(3, 100);
-      break;
-    default:
-      break;
+    base_sw_pwm_duty(0, 1);
+    base_sw_pwm_duty(1, 1);
+    base_sw_pwm_duty(2, 1);
+    base_sw_pwm_duty(3, 1);
+
+#if CONFIG_DEBUG_GEN
+    base_usart_send_string(":ISR(USART_RXC_vect):+1> ");
+    base_usart_send_decimal(base_sw_pwm_ctx.pin[0].pwm_duty);
+    base_usart_send_string(" pwm_duty\r\n");
+#endif
+    break;
+
+  case '0':
+    base_sw_pwm_set_duty(0, 0);
+    base_sw_pwm_set_duty(1, 0);
+    base_sw_pwm_set_duty(2, 0);
+    base_sw_pwm_set_duty(3, 0);
+    break;
+  case '1':
+    base_sw_pwm_set_duty(0, 100);
+    base_sw_pwm_set_duty(1, 100);
+    base_sw_pwm_set_duty(2, 100);
+    base_sw_pwm_set_duty(3, 100);
+    break;
+  default:
+    break;
   }
   SREG = sreg;
 }
@@ -345,13 +371,13 @@ int main()
   snprintf(usart_buffer, UART_MAX_LENGTH, "I2C Identity %X\r\n", i2c_receive_buffer[0]);
   base_usart_send_string(usart_buffer);
 #endif
-  base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, i2c_receive_buffer, 1);
-  base_i2c_wait();
+  // Configure Power Up
   i2c_transmit_buffer[0] = 1;
-  //trans_buf[0] = (recv_buf[0] & ~(1<<6)) + 1;
   base_i2c_start_write(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, i2c_transmit_buffer, 1);
   base_i2c_wait();
-  base_i2c_start_read(&i2c_ctx, TWI_SLA_MPU6050, 0x6B, i2c_receive_buffer, 1);
+  // Configure Gyro resolution: [deg/s] 0x00 -> 250, 0x08 -> 500, 0x10 -> 1000, 0x18 -> 2000
+  i2c_transmit_buffer[0] = 0x10;
+  base_i2c_start_write(&i2c_ctx, TWI_SLA_MPU6050, 0x1B, i2c_transmit_buffer, 1);
   base_i2c_wait();
 
   /*while loop only does tasks every 100ms*/
@@ -359,60 +385,69 @@ int main()
 
   uint8_t ms100 = 0;
   mp6050_gyro_t raw_gyro = {0, 0, 0, 0, 0, 0, 0};
-  mp6050_accel_t raw_accel = {0, 0, 0};
+  mp6050_accel_t raw_accel = {0, 0, 0, 0, 0, 0, 0};
   angle_t angle = {0.0f, 0.0f, 0.0f};
   angular_velocity_t angular_velocity = {0.0f, 0.0f, 0.0f};
 
   while (1)
   {
 #if CONFIG_DEBUG_MP6050 == 1
+
+    uint16_t sms = 0;
+    uint8_t ssec = 0;
+    uint8_t smin = 0;
+    uint8_t shour = 0;
     if (signal_100ms_event)
     {
       /*when preparing components for string no interrupts allowed*/
       ++ms100;
       cli();
       signal_100ms_event = 0;
-      /*
-
-      uint16_t sms = 0;
-      uint8_t ssec = 0;
-      uint8_t smin = 0;
-      uint8_t shour = 0;
 
       sms = timer2_milliseconds;
       ssec = timer2_seconds;
       smin = timer2_minutes;
       shour = timer2_hours;
-      */
+
       sei();
     }
 
     if(signal_10ms_event)
     {
       signal_10ms_event = 0;
-      if((mp6050_get_gyro(&raw_gyro) == 0) && (mp6050_gyro_error(&raw_gyro) == 0))
+      int error = 0;
+      if((mp6050_get_gyro(&raw_gyro) == 0) && (mp6050_get_accel(&raw_accel) == 0))
       {
-        view_calc_current_angles(&angle, &angular_velocity, &raw_gyro, MP6050_READ_INTERVAL_MS);
+        error = mp6050_get_accel_error(&raw_accel);
+        error += mp6050_get_gyro_error(&raw_gyro);
+      }
+
+      if(error == 0)
+      {
+        view_calc_current_angles(&angle, &angular_velocity, &raw_gyro, &raw_accel,
+                                 MP6050_READ_INTERVAL_MS);
       }
     }
 
     if(ms100 == 5)
     {
       ms100 = 0;
-      snprintf(usart_buffer, UART_MAX_LENGTH, "\033[0Jx = %f\r\ny = %f\r\nz = %f\r\n\r\033[3A",
-               angle.xroll, angle.ypitch, angle.zyaw);
+      //snprintf(usart_buffer, UART_MAX_LENGTH, "\033[0Jx = %f\r\ny = %f\r\nz = %f\r\n\r\033[3A",
+      //         angle.xroll, angle.ypitch, angle.zyaw);
+      snprintf(usart_buffer, UART_MAX_LENGTH, "\033[0Jx = %d\r\ny = %d\r\nz = %d\r\n\r\033[3A",
+               (int)(angle.xroll * 100.0f), (int)(angle.ypitch * 100.0f), (int)(angle.zyaw * 100.0f));
       base_usart_send_string(usart_buffer);
 
-      /*
-            // Clear everything from cursor downwards
-            base_usart_send_string("\033[0J");
-            snprintf(usart_buffer, UART_MAX_LENGTH, "%02d:%02d:%02d:%03d\r\n", shour, smin, ssec,
-                     sms);
-            base_usart_send_string(usart_buffer);
-            mp6050_print_info();
-            // Place cursor to the beginning
-            base_usart_send_string("\r\033[4A");
-            */
+#if 0
+      // Clear everything from cursor downwards
+      base_usart_send_string("\033[0J");
+      snprintf(usart_buffer, UART_MAX_LENGTH, "%02d:%02d:%02d:%03d\r\n", shour, smin, ssec,
+               sms);
+      base_usart_send_string(usart_buffer);
+      mp6050_print_info();
+      // Place cursor to the beginning
+      base_usart_send_string("\r\033[4A");
+#endif
     }
 #endif
   }
@@ -450,7 +485,27 @@ int mp6050_get_accel(mp6050_accel_t* raw)
   return 0;
 }
 
-int mp6050_gyro_error(mp6050_gyro_t* gyro)
+int mp6050_get_accel_error(mp6050_accel_t* accel)
+{
+  if(accel->error_init_cycles < MP6050_ACCEL_ERROR_DISCARD)
+  {
+    ++accel->error_init_cycles;
+    return -1;
+  }
+  if(accel->error_init_cycles < MP6050_ACCEL_ERROR_DISCARD +
+      MP6050_ACCEL_ERROR_ACCUMULATION)
+  {
+    ++accel->error_init_cycles;
+    accel->xerror += accel->x;
+    accel->yerror += accel->y;
+    accel->zerror += accel->z - (int32_t)MP6050_ACCEL_VALUE_SCALING;
+
+    return -1;
+  }
+  return 0;
+}
+
+int mp6050_get_gyro_error(mp6050_gyro_t* gyro)
 {
   if(gyro->error_init_cycles < MP6050_GYRO_ERROR_DISCARD)
   {
@@ -470,41 +525,38 @@ int mp6050_gyro_error(mp6050_gyro_t* gyro)
 }
 
 void view_calc_current_angles(angle_t* angle, angular_velocity_t* angular_velocity,
-                              const mp6050_gyro_t* gyro, short delta_time_milliseconds)
+                              const mp6050_gyro_t* gyro, const mp6050_accel_t* accel, short delta_time_milliseconds)
 {
-  float delta = (float)delta_time_milliseconds * 0.002f;
-  float xerror = (float)gyro->xerror / (float)MP6050_GYRO_ERROR_ACCUMULATION;
-  float yerror = (float)gyro->yerror / (float)MP6050_GYRO_ERROR_ACCUMULATION;
-  float zerror = (float)gyro->zerror / (float)MP6050_GYRO_ERROR_ACCUMULATION;
+  float delta = (float)delta_time_milliseconds * 0.001f;
+  float xerror = (float)gyro->xerror;
+  float yerror = (float)gyro->yerror;
+  float zerror = (float)gyro->zerror;
 
-  const float angular_change_min = VIEW_ANGULAR_HYSTERESIS;
-  float current_roll = ((((float)gyro->x - xerror)  +
-                         angular_velocity->x) * delta * 0.5f) / 131.0f;
-  float current_pitch = ((((float)gyro->y - yerror) +
-                          angular_velocity->y) * delta * 0.5f) / 131.0f;
-  float current_yaw = ((((float)gyro->z - zerror) +
-                        angular_velocity->z) * delta * 0.5f) / 131.0f;
+  float xAccel = ((float)accel->x - (float)accel->xerror /
+                  MP6050_ACCEL_ERROR_ACCUMULATION) / MP6050_ACCEL_VALUE_SCALING;
+  float yAccel = ((float)accel->y - (float)accel->yerror /
+                  MP6050_ACCEL_ERROR_ACCUMULATION) / MP6050_ACCEL_VALUE_SCALING;
+  float zAccel = ((float)accel->z - (float)accel->zerror /
+                  MP6050_ACCEL_ERROR_ACCUMULATION) / MP6050_ACCEL_VALUE_SCALING;
 
-  if(current_roll > angular_change_min || current_roll < -angular_change_min)
-    angle->xroll = angle->xroll + current_roll;
-  if(current_pitch > angular_change_min || current_pitch < -angular_change_min)
-    angle->ypitch = angle->ypitch + current_pitch;
-  if(current_yaw > angular_change_min || current_yaw < -angular_change_min)
-    angle->zyaw = angle->zyaw + current_yaw;
+  float accelRoll = 180.0f * atan2 (yAccel, zAccel) / M_PI;
+  float accelPitch = 180.0f * atan2 (-xAccel, sqrt(yAccel * yAccel + zAccel *
+                                     zAccel)) / M_PI;
+  /*float accelYaw = 180.0f * atan (zAccel / sqrt(xAccel * xAccel + zAccel * zAccel)) / M_PI;*/
 
-  /*
-  angle->xroll = angle->xroll + angular_velocity->x * delta + 0.5f * ((
-                   float)gyro->x / 131.0f) * delta * delta;
-  angle->ypitch = angle->ypitch + angular_velocity->y * delta + 0.5f * ((
-                    float)gyro->y / 131.0f) * delta * delta;
-  angle->zyaw = angle->zyaw + angular_velocity->z * delta + 0.5f * ((
-                  float)gyro->z / 131.0f) * delta * delta;
-  */
+  angular_velocity->x = 0.5f * (angular_velocity->x + ((float)gyro->x *
+                                (float)MP6050_GYRO_ERROR_ACCUMULATION - xerror) / MP6050_GYRO_VALUE_SCALING);
+  angular_velocity->y = 0.5f * (angular_velocity->y + ((float)gyro->y *
+                                (float)MP6050_GYRO_ERROR_ACCUMULATION - yerror) / MP6050_GYRO_VALUE_SCALING);
+  angular_velocity->z = 0.5f * (angular_velocity->z + ((float)gyro->z *
+                                (float)MP6050_GYRO_ERROR_ACCUMULATION - zerror) / MP6050_GYRO_VALUE_SCALING);
 
-  angular_velocity->x = (((float)gyro->x - xerror)) * delta;
-  angular_velocity->y = (((float)gyro->y - yerror)) * delta;
-  angular_velocity->z = (((float)gyro->z - zerror)) * delta;
-
+  angle->xroll = VIEW_GYRO_HIGHPASS * (angle->xroll + (angular_velocity->x * delta /
+                                       (float)MP6050_GYRO_ERROR_ACCUMULATION)) + VIEW_ACCEL_LOWPASS * accelRoll;
+  angle->ypitch = VIEW_GYRO_HIGHPASS * (angle->ypitch + (angular_velocity->y * delta /
+                                        (float)MP6050_GYRO_ERROR_ACCUMULATION)) + VIEW_ACCEL_LOWPASS * accelPitch;
+  angle->zyaw = (angle->zyaw + (angular_velocity->z * delta / (float)
+                                MP6050_GYRO_ERROR_ACCUMULATION));
 }
 
 void view_calc_current_forces(force_t* force, const mp6050_accel_t* accel,
@@ -529,16 +581,16 @@ void mp6050_print_info()
     base_i2c_wait();
     // rgyro: 0,1,2 = around axis x,y,z
     rgyro[0] = (i2c_receive_buffer[0] << 8) | i2c_receive_buffer[1];
-    rgyro[0] = rgyro[0] / 131;
     rgyro[1] = (i2c_receive_buffer[2] << 8) | i2c_receive_buffer[3];
-    rgyro[1] = rgyro[1] / 131;
     rgyro[2] = (i2c_receive_buffer[4] << 8) | i2c_receive_buffer[5];
-    rgyro[2] = rgyro[2] / 131;
 
-    snprintf(usart_buffer, UART_MAX_LENGTH, "Gyro: X(%5hi) Y(%5hi) Z(%5hi) - ",
-             (int)rgyro[0], (int)rgyro[1], (int)rgyro[2]);
+    snprintf(usart_buffer, UART_MAX_LENGTH,
+             "Gyro: X(%5hi) Y(%5hi) Z(%5hi) - Raw X(%5hi) Y(%5hi) Z(%5hi)",
+             (int)((float)rgyro[0] / MP6050_GYRO_VALUE_SCALING),
+             (int)((float)rgyro[1] / MP6050_GYRO_VALUE_SCALING),
+             (int)((float)rgyro[2] / MP6050_GYRO_VALUE_SCALING), (int)rgyro[0],
+             (int)rgyro[1], (int)rgyro[2]);
     base_usart_send_string(usart_buffer);
-    base_usart_send_byte_hex_string(i2c_receive_buffer, 6);
     base_usart_send_string("\r\n");
   }
   else
