@@ -99,6 +99,137 @@ typedef struct
   float z;
 } force_t;
 
+typedef struct
+{
+  uint8_t descriptor; //< pin descriptor for PWM driver
+  uint8_t duty; //< current motor duty 0..100%
+} motor_t;
+
+typedef struct
+{
+  motor_t ltop;
+  motor_t rtop;
+  motor_t lbottom;
+  motor_t rbottom;
+} motors_t;
+
+typedef struct
+{
+  motors_t motors;
+  uint8_t config_hover_duty;
+  uint8_t config_max_acceleration_duty;
+  uint8_t config_min_deceleration_duty;
+  int8_t config_acceleration_angle;
+  int8_t config_deceleration_angle;
+  control_state_t state;
+} control_t;
+
+void motors_init(motors_t* motors)
+{
+  base_sw_pwm_set_global_cycle(0);
+  motors->ltop.descriptor = base_sw_pwm_init(BASE_PORTB, BASE_PIN1);
+  motors->ltop.duty = 0;
+  motors->rtop.descriptor = base_sw_pwm_init(BASE_PORTB, BASE_PIN2);
+  motors->rtop.duty = 0;
+  motors->lbottom.descriptor = base_sw_pwm_init(BASE_PORTD, BASE_PIN8);
+  motors->lbottom.duty = 0;
+  motors->rbottom.descriptor = base_sw_pwm_init(BASE_PORTB, BASE_PIN3);
+  motors->rbottom.duty = 0;
+
+  base_sw_pwm_set_duty(motors->ltop.descriptor, 0);
+  base_sw_pwm_set_duty(motors->rtop.descriptor, 0);
+  base_sw_pwm_set_duty(motors->lbottom.descriptor, 0);
+  base_sw_pwm_set_duty(motors->rbottom.descriptor, 0);
+}
+
+void motors_set_all(uint8_t duty)
+{
+  base_sw_pwm_set_duty(motors->ltop.descriptor, duty);
+  base_sw_pwm_set_duty(motors->rtop.descriptor, duty);
+  base_sw_pwm_set_duty(motors->lbottom.descriptor, duty);
+  base_sw_pwm_set_duty(motors->rbottom.descriptor, duty);
+}
+
+typedef enum
+{
+  STATE_FIND_HOVER = 0,
+  STATE_HOLD_HOVER,
+  STATE_LIFT_OFF,
+  STATE_FLIGHT,
+  STATE_LAND
+} control_state_t;
+
+void control_init(control_t* control, uint8_t hover_duty)
+{
+  motors_init(&control->motors);
+  control->config_hover_duty = hover_duty;
+  control->config_acceleration_angle = 60;
+  control->config_deceleration_angle = 60;
+  control->config_max_acceleration_duty = 100;
+  control->config_min_deceleration_duty = hover_duty >> 1;
+  control->state = STATE_FIND_HOVER;
+}
+
+// This will put the quadrocoptor in hover 1.5m above ground
+void control_init_sequence(control_t* control, const angle_t* angle,
+                           const mp6050_accel_t* accel, int16_t* hold)
+{
+  if(control->state >= STATE_FLIGHT)
+    return;
+
+  short vertical_force = accel->z - accel->zerror / MP6050_ACCEL_ERROR_ACCUMULATION;
+  if(control->state == STATE_FIND_HOVER)
+  {
+    // TODO: find out if gravity force is positive or negative
+    // if lift is balanced with gforce
+    if(vertical_force < 0)
+    {
+      control->state = STATE_HOLD_HOVER;
+    }
+    ++control->config_hover_duty;
+    motors_set_all(control->config_hover_duty);
+  }
+  else if (control->state == STATE_HOLD_HOVER)
+  {
+    --(*hold);
+    // if lift is not at least g force increase
+    if (vertical_force > 0)
+    {
+      ++control->config_hover_duty;
+      motors_set_all(control->config_hover_duty);
+    }
+
+    if (*hold <= 0)
+    {
+      control->state == STATE_LIFT_OFF;
+      control->config_min_deceleration_duty = control->config_hover_duty >> 1;
+    }
+
+    // if lift is too strong, decrease
+    if(vertical_force < 0)
+    {
+      --control->config_hover_duty;
+      motors_set_all(control->config_hover_duty);
+    }
+  }
+  else if(control->state == STATE_LIFT_OFF)
+  {
+
+  }
+}
+
+void control(control_t* control, const angle_t* angle, const mp6050_accel_t* accel)
+{
+  if(control->state < STATE_FLIGHT)
+    return;
+  control_hover(angle, accel);
+}
+
+void control_hover(const angle_t* angle, const mp6050_accel_t* accel)
+{
+}
+
+
 int mp6050_get_gyro(mp6050_gyro_t* raw);
 int mp6050_get_gyro_error(mp6050_gyro_t* gyro);
 int mp6050_get_accel(mp6050_accel_t* raw);
