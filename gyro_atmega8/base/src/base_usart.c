@@ -27,7 +27,7 @@ void base_usart_send_byte(uint8_t data)
   UDR = data;
 }
 
-void base_usart_send_string(char* str)
+void base_usart_send_string(const char* str)
 {
   uint8_t c = 0;
   c = 0;
@@ -48,32 +48,32 @@ void base_usart_send_byte_hex(uint8_t data)
 
   switch(high)
   {
-    case 10:
-    case 11:
-    case 12:
-    case 13:
-    case 14:
-    case 15:
-      base_usart_send_byte(high - 10 + 'A');
-      break;
-    default:
-      base_usart_send_byte(high + '0');
-      break;
+  case 10:
+  case 11:
+  case 12:
+  case 13:
+  case 14:
+  case 15:
+    base_usart_send_byte(high - 10 + 'A');
+    break;
+  default:
+    base_usart_send_byte(high + '0');
+    break;
   }
 
   switch(low)
   {
-    case 10:
-    case 11:
-    case 12:
-    case 13:
-    case 14:
-    case 15:
-      base_usart_send_byte(low - 10 + 'A');
-      break;
-    default:
-      base_usart_send_byte(low + '0');
-      break;
+  case 10:
+  case 11:
+  case 12:
+  case 13:
+  case 14:
+  case 15:
+    base_usart_send_byte(low - 10 + 'A');
+    break;
+  default:
+    base_usart_send_byte(low + '0');
+    break;
   }
 }
 

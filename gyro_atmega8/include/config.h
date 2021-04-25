@@ -17,7 +17,7 @@
 #define MUBRR (UF_CPU/((BAUD*16)) - 1)
 
 #define CONFIG_DEBUG_GEN 0
-#define CONFIG_DEBUG_MP6050 1
+#define CONFIG_DEBUG_MP6050 0
 #define CONFIG_TIME 1
 
 

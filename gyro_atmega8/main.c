@@ -113,6 +113,15 @@ typedef struct
   motor_t rbottom;
 } motors_t;
 
+typedef enum
+{
+  STATE_FIND_HOVER = 0,
+  STATE_HOLD_HOVER,
+  STATE_LIFT_OFF,
+  STATE_FLIGHT,
+  STATE_LAND
+} control_state_t;
+
 typedef struct
 {
   motors_t motors;
@@ -142,7 +151,7 @@ void motors_init(motors_t* motors)
   base_sw_pwm_set_duty(motors->rbottom.descriptor, 0);
 }
 
-void motors_set_all(uint8_t duty)
+void motors_set_all(motors_t* motors, uint8_t duty)
 {
   base_sw_pwm_set_duty(motors->ltop.descriptor, duty);
   base_sw_pwm_set_duty(motors->rtop.descriptor, duty);
@@ -150,14 +159,6 @@ void motors_set_all(uint8_t duty)
   base_sw_pwm_set_duty(motors->rbottom.descriptor, duty);
 }
 
-typedef enum
-{
-  STATE_FIND_HOVER = 0,
-  STATE_HOLD_HOVER,
-  STATE_LIFT_OFF,
-  STATE_FLIGHT,
-  STATE_LAND
-} control_state_t;
 
 void control_init(control_t* control, uint8_t hover_duty)
 {
@@ -186,8 +187,12 @@ void control_init_sequence(control_t* control, const angle_t* angle,
     {
       control->state = STATE_HOLD_HOVER;
     }
-    ++control->config_hover_duty;
-    motors_set_all(control->config_hover_duty);
+
+    if(control->config_hover_duty < control->config_max_acceleration_duty)
+    {
+      ++control->config_hover_duty;
+      motors_set_all(&control->motors, control->config_hover_duty);
+    }
   }
   else if (control->state == STATE_HOLD_HOVER)
   {
@@ -195,26 +200,38 @@ void control_init_sequence(control_t* control, const angle_t* angle,
     // if lift is not at least g force increase
     if (vertical_force > 0)
     {
-      ++control->config_hover_duty;
-      motors_set_all(control->config_hover_duty);
+      if(control->config_hover_duty < control->config_max_acceleration_duty)
+      {
+        ++control->config_hover_duty;
+      }
+      motors_set_all(&control->motors, control->config_hover_duty);
     }
 
     if (*hold <= 0)
     {
-      control->state == STATE_LIFT_OFF;
+      control->state = STATE_LIFT_OFF;
       control->config_min_deceleration_duty = control->config_hover_duty >> 1;
     }
 
     // if lift is too strong, decrease
     if(vertical_force < 0)
     {
-      --control->config_hover_duty;
-      motors_set_all(control->config_hover_duty);
+      if(control->config_hover_duty > 0)
+      {
+        --control->config_hover_duty;
+      }
+      motors_set_all(&control->motors, control->config_hover_duty);
     }
   }
   else if(control->state == STATE_LIFT_OFF)
   {
+    uint8_t lift_duty = control->config_hover_duty + 10;
+    if (lift_duty > control->config_max_acceleration_duty)
+    {
+      lift_duty = control->config_max_acceleration_duty;
+    }
 
+    motors_set_all(&control->motors, lift_duty);
   }
 }
 
@@ -434,9 +451,8 @@ ISR(TIMER2_COMP_vect)
 
 int main()
 {
-  uint8_t motor[4] = {0,};
-  uint16_t pwm_cycle_frequency_hz = 0;
-
+  control_t control;
+  int hold = 500;
   cli();
   DDRB = 0;
   DDRC = 0;
@@ -455,13 +471,11 @@ int main()
   base_sw_pwm_ctx_init();
   base_timer0_init();
   //bottom right pins
-  pwm_cycle_frequency_hz = base_sw_pwm_set_global_cycle(0);
-  motor[0] = base_sw_pwm_init(BASE_PORTB, BASE_PIN2);
-  motor[1] = base_sw_pwm_init(BASE_PORTB, BASE_PIN3);
-  //bottom left pins
-  motor[2] = base_sw_pwm_init(BASE_PORTB, BASE_PIN1);
-  motor[3] = base_sw_pwm_init(BASE_PORTD, BASE_PIN8);
+  control_init(&control, 10);
   sei();
+
+  base_usart_send_string("Initializing.\r\n");
+
 
 #if CONFIG_DEBUG_GEN
   base_usart_send_string("TIMER0 Ticks pro Sekunde: '");
@@ -469,9 +483,6 @@ int main()
   base_usart_send_string("'\r\n");
   base_usart_send_string("TIMER0 Ticks pro Millisekunde: '");
   base_usart_send_decimal(base_timer0_context.ms_tick_count);
-  base_usart_send_string("'\r\n");
-  base_usart_send_string("PWM Frequenz: '");
-  base_usart_send_decimal(pwm_cycle_frequency_hz);
   base_usart_send_string("'\r\n");
   base_usart_send_string("PWM  Max Cycle Ticks: '");
   base_usart_send_decimal(base_sw_pwm_ctx.cycle_tick_count);
@@ -514,16 +525,16 @@ int main()
   /*while loop only does tasks every 100ms*/
   //base_usart_send_string("Initialization complete.\r\n");
 
+
   uint8_t ms100 = 0;
   mp6050_gyro_t raw_gyro = {0, 0, 0, 0, 0, 0, 0};
   mp6050_accel_t raw_accel = {0, 0, 0, 0, 0, 0, 0};
   angle_t angle = {0.0f, 0.0f, 0.0f};
   angular_velocity_t angular_velocity = {0.0f, 0.0f, 0.0f};
 
+  base_usart_send_string("Init complete. Entering Mainloop.\r\n");
   while (1)
   {
-#if CONFIG_DEBUG_MP6050 == 1
-
     uint16_t sms = 0;
     uint8_t ssec = 0;
     uint8_t smin = 0;
@@ -557,9 +568,22 @@ int main()
       {
         view_calc_current_angles(&angle, &angular_velocity, &raw_gyro, &raw_accel,
                                  MP6050_READ_INTERVAL_MS);
+
+        control_init_sequence(&control, &angle, &raw_accel, &hold);
       }
     }
 
+    if(ms100 == 1)
+    {
+      ms100 = 0;
+      base_usart_send_string("Current Duty: ");
+      base_usart_send_decimal(control.config_hover_duty);
+      base_usart_send_string("\r\nState: ");
+      base_usart_send_decimal(control.state);
+      base_usart_send_string("\r\n");
+    }
+
+#if CONFIG_DEBUG_MP6050 == 1
     if(ms100 == 5)
     {
       ms100 = 0;
