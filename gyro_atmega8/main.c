@@ -18,7 +18,7 @@
 #define UART_MAX_LENGTH 80
 #define I2C_RECEIVE_BUFFER_LENGTH 8
 #define I2C_TRANSMIT_BUFFER_LENGTH 8
-#define MP6050_GYRO_ERROR_ACCUMULATION 800
+#define MP6050_GYRO_ERROR_ACCUMULATION 100
 #define MP6050_GYRO_ERROR_DISCARD 200
 #define MP6050_ACCEL_ERROR_ACCUMULATION 100
 #define MP6050_ACCEL_ERROR_DISCARD 20
@@ -115,11 +115,11 @@ typedef struct
 
 typedef enum
 {
-  STATE_FIND_HOVER = 0,
+  STATE_STOP = 0,
   STATE_HOLD_HOVER,
   STATE_LIFT_OFF,
   STATE_FLIGHT,
-  STATE_LAND
+  STATE_LAND,
 } control_state_t;
 
 typedef struct
@@ -136,14 +136,14 @@ typedef struct
 void motors_init(motors_t* motors)
 {
   base_sw_pwm_set_global_cycle(0);
-  motors->ltop.descriptor = base_sw_pwm_init(BASE_PORTB, BASE_PIN1);
-  motors->ltop.duty = 0;
-  motors->rtop.descriptor = base_sw_pwm_init(BASE_PORTB, BASE_PIN2);
+  motors->rtop.descriptor = base_sw_pwm_init(BASE_PORTB, BASE_PIN1);
   motors->rtop.duty = 0;
-  motors->lbottom.descriptor = base_sw_pwm_init(BASE_PORTD, BASE_PIN8);
-  motors->lbottom.duty = 0;
-  motors->rbottom.descriptor = base_sw_pwm_init(BASE_PORTB, BASE_PIN3);
+  motors->ltop.descriptor = base_sw_pwm_init(BASE_PORTB, BASE_PIN3);
+  motors->ltop.duty = 0;
+  motors->rbottom.descriptor = base_sw_pwm_init(BASE_PORTD, BASE_PIN8);
   motors->rbottom.duty = 0;
+  motors->lbottom.descriptor = base_sw_pwm_init(BASE_PORTB, BASE_PIN2);
+  motors->lbottom.duty = 0;
 
   base_sw_pwm_set_duty(motors->ltop.descriptor, 0);
   base_sw_pwm_set_duty(motors->rtop.descriptor, 0);
@@ -153,6 +153,9 @@ void motors_init(motors_t* motors)
 
 void motors_set_all(motors_t* motors, uint8_t duty)
 {
+  uint8_t balance_duty = 0;
+  if (duty > 30)
+    balance_duty  = duty - 30;
   base_sw_pwm_set_duty(motors->ltop.descriptor, duty);
   base_sw_pwm_set_duty(motors->rtop.descriptor, duty);
   base_sw_pwm_set_duty(motors->lbottom.descriptor, duty);
@@ -168,7 +171,7 @@ void control_init(control_t* control, uint8_t hover_duty)
   control->config_deceleration_angle = 60;
   control->config_max_acceleration_duty = 100;
   control->config_min_deceleration_duty = hover_duty >> 1;
-  control->state = STATE_FIND_HOVER;
+  control->state = STATE_HOLD_HOVER;
 }
 
 // This will put the quadrocoptor in hover 1.5m above ground
@@ -179,22 +182,7 @@ void control_init_sequence(control_t* control, const angle_t* angle,
     return;
 
   short vertical_force = accel->z - accel->zerror / MP6050_ACCEL_ERROR_ACCUMULATION;
-  if(control->state == STATE_FIND_HOVER)
-  {
-    // TODO: find out if gravity force is positive or negative
-    // if lift is balanced with gforce
-    if(vertical_force < 0)
-    {
-      control->state = STATE_HOLD_HOVER;
-    }
-
-    if(control->config_hover_duty < control->config_max_acceleration_duty)
-    {
-      ++control->config_hover_duty;
-      motors_set_all(&control->motors, control->config_hover_duty);
-    }
-  }
-  else if (control->state == STATE_HOLD_HOVER)
+  if (control->state == STATE_HOLD_HOVER)
   {
     --(*hold);
     // if lift is not at least g force increase
@@ -222,16 +210,26 @@ void control_init_sequence(control_t* control, const angle_t* angle,
       }
       motors_set_all(&control->motors, control->config_hover_duty);
     }
+
   }
   else if(control->state == STATE_LIFT_OFF)
   {
-    uint8_t lift_duty = control->config_hover_duty + 10;
+    uint8_t lift_duty = 100; //control->config_hover_duty + 40;
     if (lift_duty > control->config_max_acceleration_duty)
     {
       lift_duty = control->config_max_acceleration_duty;
     }
 
+    ++(*hold);
+    if(*hold > 300)
+      control->state = STATE_STOP;
+
     motors_set_all(&control->motors, lift_duty);
+  }
+  else if(control->state == STATE_STOP)
+  {
+    control->config_hover_duty = 5;
+    motors_set_all(&control->motors, control->config_hover_duty);
   }
 }
 
@@ -452,7 +450,7 @@ ISR(TIMER2_COMP_vect)
 int main()
 {
   control_t control;
-  int hold = 500;
+  int hold = 200;
   cli();
   DDRB = 0;
   DDRC = 0;
@@ -471,7 +469,7 @@ int main()
   base_sw_pwm_ctx_init();
   base_timer0_init();
   //bottom right pins
-  control_init(&control, 10);
+  control_init(&control, 30);
   sei();
 
   base_usart_send_string("Initializing.\r\n");
@@ -542,7 +540,7 @@ int main()
     if (signal_100ms_event)
     {
       /*when preparing components for string no interrupts allowed*/
-      ++ms100;
+      ms100 = 1;
       cli();
       signal_100ms_event = 0;
 
@@ -569,19 +567,20 @@ int main()
         view_calc_current_angles(&angle, &angular_velocity, &raw_gyro, &raw_accel,
                                  MP6050_READ_INTERVAL_MS);
 
-        control_init_sequence(&control, &angle, &raw_accel, &hold);
+        if(ms100 == 1)
+        {
+          control_init_sequence(&control, &angle, &raw_accel, &hold);
+          ms100 = 0;
+          base_usart_send_string("Current Duty: ");
+          base_usart_send_decimal(control.config_hover_duty);
+          base_usart_send_string("\r\nState: ");
+          base_usart_send_decimal(control.state);
+          base_usart_send_string("\r\n");
+        }
+
       }
     }
 
-    if(ms100 == 1)
-    {
-      ms100 = 0;
-      base_usart_send_string("Current Duty: ");
-      base_usart_send_decimal(control.config_hover_duty);
-      base_usart_send_string("\r\nState: ");
-      base_usart_send_decimal(control.state);
-      base_usart_send_string("\r\n");
-    }
 
 #if CONFIG_DEBUG_MP6050 == 1
     if(ms100 == 5)

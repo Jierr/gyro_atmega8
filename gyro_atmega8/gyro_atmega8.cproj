@@ -52,7 +52,7 @@
       </ToolNumber>
       <ToolName>Custom Programming Tool</ToolName>
     </custom>
-    <CustomProgrammingToolCommand>C:\Users\jierr\Desktop\Applications\avrdude\avrdude.exe -u -c stk500 -p m8 -P COM18 -b 500000 -U flash:w:"E:\Development\git\gyro_atmega8\gyro_atmega8\Release\gyro_atmega8.hex":a </CustomProgrammingToolCommand>
+    <CustomProgrammingToolCommand>C:\Users\jierr\Desktop\Applications\avrdude\avrdude.exe -u -c stk500 -p m8 -P COM19 -b 500000 -U flash:w:"E:\Development\git\gyro_atmega8\gyro_atmega8\Release\gyro_atmega8.hex":a </CustomProgrammingToolCommand>
     <avrtoolinterface>ISP</avrtoolinterface>
     <com_atmel_avrdbg_tool_stk500>
       <ToolOptions>
